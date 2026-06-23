@@ -22,7 +22,7 @@ import (
 	"github.com/apache/arrow/go/v17/arrow"
 	"github.com/apache/arrow/go/v17/arrow/ipc"
 
-	"github.com/lancedb/lancedb-go/pkg/contracts"
+	"github.com/eozsahin1993/lancedb-go/pkg/contracts"
 )
 
 // Connection represents a connection to a LanceDB database

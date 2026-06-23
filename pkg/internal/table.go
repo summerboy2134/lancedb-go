@@ -24,7 +24,7 @@ import (
 	"github.com/apache/arrow/go/v17/arrow/array"
 	"github.com/apache/arrow/go/v17/arrow/ipc"
 
-	"github.com/lancedb/lancedb-go/pkg/contracts"
+	"github.com/eozsahin1993/lancedb-go/pkg/contracts"
 )
 
 // Table represents a table in the LanceDB database

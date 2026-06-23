@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/lancedb/lancedb-go/pkg/contracts"
+	"github.com/eozsahin1993/lancedb-go/pkg/contracts"
 )
 
 // Query tuning tests. These exercise the per-query tuning surface added by

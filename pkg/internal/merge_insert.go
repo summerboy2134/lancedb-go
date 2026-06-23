@@ -18,7 +18,7 @@ import (
 
 	"github.com/apache/arrow/go/v17/arrow"
 
-	"github.com/lancedb/lancedb-go/pkg/contracts"
+	"github.com/eozsahin1993/lancedb-go/pkg/contracts"
 )
 
 // MergeInsertBuilder implements contracts.IMergeInsertBuilder.

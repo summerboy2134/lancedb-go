@@ -14,7 +14,7 @@ import (
 
 	"github.com/apache/arrow/go/v17/arrow"
 
-	lancedb "github.com/lancedb/lancedb-go/pkg/contracts"
+	lancedb "github.com/eozsahin1993/lancedb-go/pkg/contracts"
 )
 
 // Schema represents a LanceDB table schema

@@ -16,8 +16,8 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/lancedb/lancedb-go/pkg/contracts"
-	"github.com/lancedb/lancedb-go/pkg/internal"
+	"github.com/eozsahin1993/lancedb-go/pkg/contracts"
+	"github.com/eozsahin1993/lancedb-go/pkg/internal"
 )
 
 var initOnce sync.Once

@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lancedb/lancedb-go/pkg/contracts"
-	"github.com/lancedb/lancedb-go/pkg/internal"
-	"github.com/lancedb/lancedb-go/pkg/lancedb"
+	"github.com/eozsahin1993/lancedb-go/pkg/contracts"
+	"github.com/eozsahin1993/lancedb-go/pkg/internal"
+	"github.com/eozsahin1993/lancedb-go/pkg/lancedb"
 )
 
 func setupFTSTestTable(t *testing.T) contracts.ITable {

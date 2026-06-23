@@ -16,7 +16,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/lancedb/lancedb-go/pkg/contracts"
+	"github.com/eozsahin1993/lancedb-go/pkg/contracts"
 )
 
 // Compile-time check that *Table implements the optional

@@ -1,4 +1,4 @@
-module github.com/lancedb/lancedb-go
+module github.com/eozsahin1993/lancedb-go
 
 go 1.24.0
 

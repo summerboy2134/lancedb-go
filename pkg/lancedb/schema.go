@@ -3,8 +3,8 @@ package lancedb
 import (
 	"github.com/apache/arrow/go/v17/arrow"
 
-	"github.com/lancedb/lancedb-go/pkg/contracts"
-	"github.com/lancedb/lancedb-go/pkg/internal"
+	"github.com/eozsahin1993/lancedb-go/pkg/contracts"
+	"github.com/eozsahin1993/lancedb-go/pkg/internal"
 )
 
 // NewSchema creates a new schema from Arrow schema

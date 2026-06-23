@@ -13,9 +13,9 @@ import (
 	"github.com/apache/arrow/go/v17/arrow/array"
 	"github.com/apache/arrow/go/v17/arrow/memory"
 
-	"github.com/lancedb/lancedb-go/pkg/contracts"
-	"github.com/lancedb/lancedb-go/pkg/internal"
-	"github.com/lancedb/lancedb-go/pkg/lancedb"
+	"github.com/eozsahin1993/lancedb-go/pkg/contracts"
+	"github.com/eozsahin1993/lancedb-go/pkg/internal"
+	"github.com/eozsahin1993/lancedb-go/pkg/lancedb"
 )
 
 func TestGetAllIndexes(t *testing.T) {

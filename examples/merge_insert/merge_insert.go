@@ -21,7 +21,7 @@ import (
 	"github.com/apache/arrow/go/v17/arrow/array"
 	"github.com/apache/arrow/go/v17/arrow/memory"
 
-	"github.com/lancedb/lancedb-go/pkg/lancedb"
+	"github.com/eozsahin1993/lancedb-go/pkg/lancedb"
 )
 
 func main() {
