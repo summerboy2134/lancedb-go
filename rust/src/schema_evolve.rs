@@ -165,6 +165,34 @@ pub extern "C" fn simple_lancedb_table_alter_columns(
             }
         }
 
+        // LanceDB 0.31 accepts nullable -> non-nullable when the current data
+        // happens not to contain nulls.  The established Go API deliberately
+        // exposed the older, schema-only widening rule, so preserve that
+        // behavior at the compatibility boundary.
+        let table = unsafe { &*(table_handle as *const lancedb::Table) };
+        let rt = get_simple_runtime();
+        let schema = match rt.block_on(async { table.schema().await }) {
+            Ok(schema) => schema,
+            Err(e) => {
+                return SimpleResult::error(format!(
+                    "alter_columns failed to load current schema: {}",
+                    e
+                ));
+            }
+        };
+        for entry in &entries {
+            if entry.nullable == Some(false) {
+                if let Ok(field) = schema.field_with_name(&entry.path) {
+                    if field.is_nullable() {
+                        return SimpleResult::error(format!(
+                            "alter_columns: tightening nullable column '{}' to non-nullable is not supported",
+                            entry.path
+                        ));
+                    }
+                }
+            }
+        }
+
         let alterations: Vec<ColumnAlteration> = entries
             .into_iter()
             .map(|e| {
@@ -179,8 +207,6 @@ pub extern "C" fn simple_lancedb_table_alter_columns(
             })
             .collect();
 
-        let table = unsafe { &*(table_handle as *const lancedb::Table) };
-        let rt = get_simple_runtime();
         match rt.block_on(async { table.alter_columns(&alterations).await }) {
             Ok(res) => {
                 unsafe {

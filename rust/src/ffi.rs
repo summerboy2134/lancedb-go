@@ -7,11 +7,21 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::ptr;
 
+pub const NATIVE_SEGMENT_WIRE_VERSION: u32 = 1;
+pub const NATIVE_RUNTIME_VERSION: &str =
+    "lancedb=0.31.0;lance=8.0.0;arrow=58.0.0;rust=1.91.0;native-segment-wire=1";
+
+pub const FFI_ERROR_NONE: c_int = 0;
+pub const FFI_ERROR_OPERATION: c_int = 1;
+pub const FFI_ERROR_PANIC: c_int = 2;
+
 /// Result type for C interface
 #[repr(C)]
 pub struct SimpleResult {
     pub success: bool,
     pub error_message: *mut c_char,
+    pub error_code: c_int,
+    pub runtime_version: *mut c_char,
 }
 
 impl SimpleResult {
@@ -19,6 +29,8 @@ impl SimpleResult {
         Self {
             success: true,
             error_message: ptr::null_mut(),
+            error_code: FFI_ERROR_NONE,
+            runtime_version: CString::new(NATIVE_RUNTIME_VERSION).unwrap().into_raw(),
         }
     }
 
@@ -28,7 +40,15 @@ impl SimpleResult {
         Self {
             success: false,
             error_message: c_msg.into_raw(),
+            error_code: FFI_ERROR_OPERATION,
+            runtime_version: CString::new(NATIVE_RUNTIME_VERSION).unwrap().into_raw(),
         }
+    }
+
+    pub fn panic(msg: String) -> Self {
+        let mut result = Self::error(msg);
+        result.error_code = FFI_ERROR_PANIC;
+        result
     }
 }
 
@@ -62,6 +82,9 @@ pub extern "C" fn simple_lancedb_result_free(result: *mut SimpleResult) {
         if !result.error_message.is_null() {
             let _ = CString::from_raw(result.error_message);
         }
+        if !result.runtime_version.is_null() {
+            let _ = CString::from_raw(result.runtime_version);
+        }
     }
 }
 
@@ -74,5 +97,18 @@ pub extern "C" fn simple_lancedb_free_string(s: *mut c_char) {
     }
     unsafe {
         let _ = CString::from_raw(s);
+    }
+}
+
+/// Free a byte buffer allocated by the library.
+#[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
+pub extern "C" fn simple_lancedb_free_bytes(data: *mut u8, len: usize) {
+    if data.is_null() {
+        return;
+    }
+    unsafe {
+        let slice = ptr::slice_from_raw_parts_mut(data, len);
+        let _ = Box::<[u8]>::from_raw(slice);
     }
 }

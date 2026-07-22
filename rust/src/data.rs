@@ -332,12 +332,7 @@ pub extern "C" fn simple_lancedb_table_add_json(
         match json_to_record_batch(&json_values, &table_schema) {
             Ok(record_batch) => {
                 // Add the record batch to the table
-                match rt.block_on(async {
-                    use arrow_array::RecordBatchIterator;
-                    let batches = vec![Ok(record_batch.clone())];
-                    let batch_iter = RecordBatchIterator::new(batches, record_batch.schema());
-                    table.add(batch_iter).execute().await
-                }) {
+                match rt.block_on(async { table.add(record_batch.clone()).execute().await }) {
                     Ok(_) => {
                         unsafe {
                             *added_count = record_batch.num_rows() as i64;
@@ -401,19 +396,7 @@ pub extern "C" fn simple_lancedb_table_add_ipc(
                 let total_rows: usize = record_batches.iter().map(|batch| batch.num_rows()).sum();
 
                 // Add the record batches to the table
-                match rt.block_on(async {
-                    use arrow_array::RecordBatchIterator;
-
-                    // Get schema from the first batch
-                    let schema = record_batches[0].schema();
-
-                    // Create iterator from record batches
-                    let batches: Vec<Result<arrow_array::RecordBatch, arrow_schema::ArrowError>> =
-                        record_batches.into_iter().map(Ok).collect();
-                    let batch_iter = RecordBatchIterator::new(batches, schema);
-
-                    table.add(batch_iter).execute().await
-                }) {
+                match rt.block_on(async { table.add(record_batches).execute().await }) {
                     Ok(_) => {
                         unsafe {
                             *added_count = total_rows as i64;

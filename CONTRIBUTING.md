@@ -7,7 +7,8 @@ Thank you for your interest in contributing to the LanceDB Go SDK! This document
 ### Prerequisites
 
 - **Go 1.21+**: Download from [golang.org](https://golang.org/dl/)
-- **Rust 1.78+**: Install via [rustup.rs](https://rustup.rs/)
+- **Rust 1.91.0**: Install via [rustup.rs](https://rustup.rs/) (also pinned by `rust/rust-toolchain.toml`)
+- **protoc**: Required by Lance 8 protobuf generation; alternatively set `PROTOC` and `PROTOC_INCLUDE`
 - **Make**: Standard build tool
 - **Git**: Version control
 
@@ -26,9 +27,10 @@ make install-deps
 
 This will install:
 - Rust toolchain updates
-- cbindgen (for C header generation)
 - Go dependencies
 - golangci-lint (Go linter)
+
+`cbindgen` is a Cargo build dependency and does not need a separate global install.
 
 3. Verify the setup:
 ```bash

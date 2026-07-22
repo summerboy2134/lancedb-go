@@ -1,6 +1,6 @@
 [package]
 name = "lancedb-go"
-version = "0.25.1-beta.1"
+version = "0.31.0-native-segments.1"
 edition = "2021"
 description = "CGO bindings for LanceDB"
 license = "Apache-2.0"
@@ -8,7 +8,7 @@ repository = "https://github.com/lancedb/lancedb-go"
 keywords = ["lancedb", "lance", "database", "vector", "search"]
 categories = ["database-implementations"]
 authors = ["LanceDB Devs <dev@lancedb.com>"]
-rust-version = "1.78.0"
+rust-version = "1.91.0"
 publish = false
 
 [lib]
@@ -17,21 +17,37 @@ crate-type = ["staticlib"]
 path = "src/lib_simple.rs"
 
 [dependencies]
-lancedb = { git = "https://github.com/lancedb/lancedb.git", tag = "v0.24.0", default-features = false }
-tokio = { version = "1.40", features = ["rt-multi-thread", "macros"] }
+lancedb = { version = "=0.31.0", default-features = false }
+lance = { version = "=8.0.0", default-features = false }
+lance-index = "=8.0.0"
+lance-linalg = "=8.0.0"
+lance-table = "=8.0.0"
+tokio = { version = "1.40", features = ["rt-multi-thread", "macros", "fs", "io-util"] }
 libc = "0.2"
 log = "0.4"
 env_logger = "0.11"
-arrow = { version = "56.2", optional = false }
-arrow-array = "56.2"
-arrow-data = "56.2"
-arrow-schema = "56.2"
-arrow-ord = "56.2"
-arrow-cast = "56.2"
-arrow-ipc = "56.2"
+arrow = { version = "=58.0.0", optional = false }
+arrow-arith = "=58.0.0"
+arrow-array = "=58.0.0"
+arrow-buffer = "=58.0.0"
+arrow-csv = "=58.0.0"
+arrow-data = "=58.0.0"
+arrow-json = "=58.0.0"
+arrow-schema = "=58.0.0"
+arrow-ord = "=58.0.0"
+arrow-row = "=58.0.0"
+arrow-select = "=58.0.0"
+arrow-string = "=58.0.0"
+arrow-cast = "=58.0.0"
+arrow-ipc = "=58.0.0"
+base64 = "0.22"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio-stream = "0.1"
+prost = "0.14"
+object_store = { version = "=0.13.2", default-features = false, features = ["fs"] }
+sha2 = "0.10"
+url = "2.5"
 # Re-exported via lancedb::table::OptimizeAction::Prune.older_than.
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 
@@ -43,9 +59,20 @@ chrono = { version = "0.4", default-features = false, features = ["std"] }
 default = []
 remote = ["lancedb/remote"]
 fp16kernels = ["lancedb/fp16kernels"]
-aws = ["lancedb/aws"]
-gcs = ["lancedb/gcs"]
-azure = ["lancedb/azure"]
+aws = ["lancedb/aws", "object_store/aws"]
+gcs = ["lancedb/gcs", "object_store/gcp"]
+azure = ["lancedb/azure", "object_store/azure"]
 
 [build-dependencies]
 cbindgen = "0.26"
+
+# Lance/DataFusion has a large dependency graph.  Keeping debug information and
+# incremental object copies disabled makes local and CI native builds materially
+# smaller without changing runtime behavior or release optimization.
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.test]
+debug = 0
+incremental = false

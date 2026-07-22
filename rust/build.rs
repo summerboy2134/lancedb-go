@@ -22,13 +22,12 @@ fn main() {
         println!("cargo:rustc-link-arg=-Wl,-undefined,dynamic_lookup");
     }
 
+    let config = cbindgen::Config::from_file(format!("{}/cbindgen.toml", crate_dir))
+        .expect("Unable to read cbindgen.toml");
+
     cbindgen::Builder::new()
         .with_crate(crate_dir)
-        .with_language(cbindgen::Language::C)
-        .with_include_guard("LANCEDB_H")
-        .with_include_version(true)
-        .with_documentation(true)
-        .with_pragma_once(true)
+        .with_config(config)
         .generate()
         .expect("Unable to generate bindings")
         .write_to_file(format!("{}/lancedb.h", out_dir));

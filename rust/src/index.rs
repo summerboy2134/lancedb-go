@@ -265,7 +265,6 @@ pub extern "C" fn simple_lancedb_table_index_stats(
                     "index_type": format!("{:?}", index_stats.index_type),
                     "distance_type": index_stats.distance_type,
                     "num_indices": index_stats.num_indices,
-                    "loss": index_stats.loss,
                 });
 
                 match serde_json::to_string(&stats_json) {

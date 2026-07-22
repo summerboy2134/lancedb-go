@@ -142,7 +142,6 @@ clean-dist:
 install-deps:
 	@echo "Installing Rust dependencies..."
 	rustup update
-	cargo install cbindgen
 	@echo "Installing Go dependencies..."
 	go mod download
 	go mod tidy
@@ -266,7 +265,7 @@ dev-setup: install-deps install-act install-hooks
 check-tools:
 	@command -v cargo >/dev/null 2>&1 || { echo "Rust/Cargo is required but not installed. Please install from https://rustup.rs/"; exit 1; }
 	@command -v go >/dev/null 2>&1 || { echo "Go is required but not installed. Please install from https://golang.org/"; exit 1; }
-	@command -v cbindgen >/dev/null 2>&1 || { echo "cbindgen is required. Install with: cargo install cbindgen"; exit 1; }
+	@if [ -n "$$PROTOC" ]; then test -x "$$PROTOC" || { echo "PROTOC is not executable: $$PROTOC"; exit 1; }; else command -v protoc >/dev/null 2>&1 || { echo "protoc is required to build Lance 8"; exit 1; }; fi
 	@echo "All required tools are installed"
 
 # Show help
