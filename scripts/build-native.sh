@@ -120,9 +120,9 @@ if [[ -n "$NATIVE_FEATURES" ]]; then
     FEATURE_ARGS=(--features "$NATIVE_FEATURES")
 fi
 if [[ "$USE_ZIGBUILD" == true ]]; then
-    CARGO_TARGET_DIR="$BUILD_TARGET_DIR" cargo zigbuild --release --target "$RUST_TARGET" "${FEATURE_ARGS[@]}"
+    CARGO_TARGET_DIR="$BUILD_TARGET_DIR" cargo zigbuild --locked --release --target "$RUST_TARGET" "${FEATURE_ARGS[@]}"
 else
-    CARGO_TARGET_DIR="$BUILD_TARGET_DIR" cargo build --release --target "$RUST_TARGET" "${FEATURE_ARGS[@]}"
+    CARGO_TARGET_DIR="$BUILD_TARGET_DIR" cargo build --locked --release --target "$RUST_TARGET" "${FEATURE_ARGS[@]}"
 fi
 
 # Copy library to distribution directory

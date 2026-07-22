@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'  # Trigger on version tags like v1.0.0
+      - '!v*-native-segments.*'  # Built and tested natively by native-segments-linux.yml
   workflow_dispatch:  # Allow manual triggering
     inputs:
       version:
@@ -62,7 +63,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.91.0
         with:
           targets: ${{ matrix.rust_target }}
           components: rustfmt, clippy
@@ -365,7 +366,7 @@ jobs:
           protoc --version
           
           cd rust
-          cargo build --release --target ${{ matrix.rust_target }} --features aws,gcs,azure
+          cargo build --locked --release --target ${{ matrix.rust_target }} --features aws,gcs,azure
         env:
           RUST_TARGET: ${{ matrix.rust_target }}
           PROTOC: ${{ env.PROTOC }}
@@ -401,7 +402,7 @@ jobs:
           & protoc --version
 
           Set-Location rust
-          cargo build --release --target ${{ matrix.rust_target }} --features aws,gcs,azure
+          cargo build --locked --release --target ${{ matrix.rust_target }} --features aws,gcs,azure
         env:
           RUST_TARGET: ${{ matrix.rust_target }}
           PROTOC: ${{ env.PROTOC }}
@@ -430,7 +431,7 @@ jobs:
           echo "✅ protoc is ready: $(protoc --version)"
 
           cd rust
-          cargo build --release --target "${{ matrix.rust_target }}" --features aws,gcs,azure
+          cargo build --locked --release --target "${{ matrix.rust_target }}" --features aws,gcs,azure
         env:
           RUST_TARGET: ${{ matrix.rust_target }}
           PROTOC: ${{ env.PROTOC }}

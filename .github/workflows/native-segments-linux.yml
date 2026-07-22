@@ -1,0 +1,198 @@
+name: Native Segment Linux Artifacts
+
+on:
+  push:
+    tags:
+      - 'v*-native-segments.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  LANCEDB_GO_NATIVE_FEATURES: aws,gcs,azure
+
+jobs:
+  build-and-test:
+    name: Build and test ${{ matrix.goarch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goarch: amd64
+            runner: ubuntu-24.04
+            rust_target: x86_64-unknown-linux-gnu
+            library_dir: linux_amd64
+            elf_machine: Advanced Micro Devices X86-64
+          - goarch: arm64
+            runner: ubuntu-24.04-arm
+            rust_target: aarch64-unknown-linux-gnu
+            library_dir: linux_arm64
+            elf_machine: AArch64
+
+    steps:
+      - name: Checkout immutable source
+        uses: actions/checkout@v4
+
+      - name: Set up Rust 1.91.0
+        uses: dtolnay/rust-toolchain@1.91.0
+        with:
+          targets: ${{ matrix.rust_target }}
+          components: rustfmt
+
+      - name: Verify Rust toolchain and native runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version --verbose
+          cargo --version
+          test "$(rustc --version | awk '{print $2}')" = "1.91.0"
+          test "$(rustc -vV | sed -n 's/^host: //p')" = "${{ matrix.rust_target }}"
+          case "${{ matrix.goarch }}" in
+            amd64) test "$(uname -m)" = "x86_64" ;;
+            arm64) test "$(uname -m)" = "aarch64" ;;
+          esac
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache: true
+
+      - name: Install native build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binutils file libbz2-dev protobuf-compiler zlib1g-dev
+          protoc --version
+          readelf --version | head -1
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust -> target
+          key: native-segments-linux-${{ matrix.goarch }}-rust-1.91.0
+
+      - name: Build static library with default cloud features
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/build-native.sh
+          ./scripts/build-native.sh linux "${{ matrix.goarch }}"
+
+      - name: Verify ELF architecture, archive and C ABI
+        id: artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          library="lib/${{ matrix.library_dir }}/liblancedb_go.a"
+          test -s "$library"
+
+          file "$library"
+          object_name="$(ar t "$library" | awk '/\.o$/{print; exit}')"
+          test -n "$object_name"
+          object_dir="$(mktemp -d)"
+          (
+            cd "$object_dir"
+            ar x "$GITHUB_WORKSPACE/$library" "$object_name"
+          )
+          file "$object_dir/$object_name"
+          readelf -h "$object_dir/$object_name" | tee "elf-header-${{ matrix.goarch }}.txt"
+          machine="$(awk -F: '/Machine:/{sub(/^[[:space:]]+/, "", $2); print $2; exit}' "elf-header-${{ matrix.goarch }}.txt")"
+          test "$machine" = "${{ matrix.elf_machine }}"
+
+          nm -g --defined-only "$library" | awk '{print $NF}' | sort -u > exported-symbols.txt
+          for symbol in \
+            simple_lancedb_table_list_fragments \
+            simple_lancedb_table_prepare_index_model \
+            simple_lancedb_table_create_index_uncommitted \
+            simple_lancedb_table_merge_existing_index_segments \
+            simple_lancedb_table_commit_existing_index_segments \
+            simple_lancedb_table_inspect_index_segments
+          do
+            grep -Fxq "$symbol" exported-symbols.txt
+            echo "verified ABI symbol: $symbol"
+          done
+
+          sha256sum "$library" | tee "SHA256SUMS-${{ matrix.goarch }}.txt"
+          size="$(stat -c '%s' "$library")"
+          sha="$(sha256sum "$library" | awk '{print $1}')"
+          echo "size=$size" | tee "artifact-${{ matrix.goarch }}.txt"
+          echo "sha256=$sha" | tee -a "artifact-${{ matrix.goarch }}.txt"
+          echo "size=$size" >> "$GITHUB_OUTPUT"
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Native Segment E2E
+        shell: bash
+        env:
+          CGO_CFLAGS: -I${{ github.workspace }}/include
+          CGO_LDFLAGS: ${{ github.workspace }}/lib/${{ matrix.library_dir }}/liblancedb_go.a -lm -ldl -lpthread -lbz2 -lz
+        run: |
+          go test ./pkg/tests \
+            -run '^TestNativeIndexSegmentsDistributedLifecycle$' \
+            -count=1 -v
+
+      - name: Full Go link and test suite
+        shell: bash
+        env:
+          CGO_CFLAGS: -I${{ github.workspace }}/include
+          CGO_LDFLAGS: ${{ github.workspace }}/lib/${{ matrix.library_dir }}/liblancedb_go.a -lm -ldl -lpthread -lbz2 -lz
+        run: go test ./... -count=1
+
+      - name: Upload verified artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lancedb-go-linux-${{ matrix.goarch }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+          path: |
+            lib/${{ matrix.library_dir }}/liblancedb_go.a
+            include/lancedb.h
+            SHA256SUMS-${{ matrix.goarch }}.txt
+            artifact-${{ matrix.goarch }}.txt
+            elf-header-${{ matrix.goarch }}.txt
+
+  publish-release:
+    name: Publish Linux native artifacts
+    if: github.ref_type == 'tag'
+    needs: build-and-test
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: lancedb-go-linux-*
+          path: dist
+          merge-multiple: true
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/lib/linux_amd64/liblancedb_go.a
+          test -s dist/lib/linux_arm64/liblancedb_go.a
+          mkdir -p release-assets
+          cp dist/lib/linux_amd64/liblancedb_go.a release-assets/liblancedb_go-linux-amd64.a
+          cp dist/lib/linux_arm64/liblancedb_go.a release-assets/liblancedb_go-linux-arm64.a
+          cp dist/include/lancedb.h release-assets/lancedb.h
+          cat dist/SHA256SUMS-amd64.txt dist/SHA256SUMS-arm64.txt > release-assets/SHA256SUMS
+          tar -C dist -czf release-assets/lancedb-go-native-segments-linux.tar.gz \
+            lib/linux_amd64 lib/linux_arm64 include \
+            SHA256SUMS-amd64.txt SHA256SUMS-arm64.txt \
+            artifact-amd64.txt artifact-arm64.txt
+          sha256sum release-assets/*
+
+      - name: Create immutable GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: LanceDB Go Native Segments ${{ github.ref_name }}
+          prerelease: true
+          generate_release_notes: true
+          files: release-assets/*
