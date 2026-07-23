@@ -576,9 +576,7 @@ fn validate_index_config(config: &NativeIndexConfig) -> Result<(), String> {
             let num_bits = config
                 .num_bits
                 .ok_or_else(|| "IVF_PQ requires index_config.num_bits".to_string())?;
-            if num_sub_vectors == 0
-                || !config.dimension.is_multiple_of(num_sub_vectors)
-            {
+            if num_sub_vectors == 0 || !config.dimension.is_multiple_of(num_sub_vectors) {
                 return Err(format!(
                     "IVF_PQ num_sub_vectors {num_sub_vectors} must divide dimension {}",
                     config.dimension
@@ -671,9 +669,7 @@ async fn vector_params(request: &SegmentBuildRequest) -> Result<VectorIndexParam
             let num_bits = config
                 .num_bits
                 .ok_or_else(|| "IVF_PQ requires index_config.num_bits".to_string())?;
-            if num_sub_vectors == 0
-                || !config.dimension.is_multiple_of(num_sub_vectors)
-            {
+            if num_sub_vectors == 0 || !config.dimension.is_multiple_of(num_sub_vectors) {
                 return Err(format!(
                     "IVF_PQ num_sub_vectors {num_sub_vectors} must divide dimension {}",
                     config.dimension
