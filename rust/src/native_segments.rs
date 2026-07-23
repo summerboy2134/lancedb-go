@@ -366,8 +366,8 @@ fn validate_checksum_syntax(checksum: &str, field: &str) -> Result<(), String> {
 }
 
 async fn read_artifact_uri(uri: &str, field: &str) -> Result<Vec<u8>, String> {
-    match Url::parse(uri) {
-        Ok(url) => {
+    match parse_artifact_url(uri) {
+        Some(url) => {
             let (store, location) = parse_url_opts(&url, std::env::vars()).map_err(|error| {
                 format!("failed to resolve {field}.reference.uri '{uri}': {error}")
             })?;
@@ -382,9 +382,25 @@ async fn read_artifact_uri(uri: &str, field: &str) -> Result<Vec<u8>, String> {
                     format!("failed to download {field}.reference.uri '{uri}': {error}")
                 })
         }
-        Err(_) => tokio::fs::read(uri)
+        None => tokio::fs::read(uri)
             .await
             .map_err(|error| format!("failed to read {field}.reference.uri '{uri}': {error}")),
+    }
+}
+
+fn is_windows_drive_path(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && matches!(bytes[2], b'\\' | b'/')
+}
+
+fn parse_artifact_url(value: &str) -> Option<Url> {
+    if is_windows_drive_path(value) {
+        None
+    } else {
+        Url::parse(value).ok()
     }
 }
 
@@ -407,7 +423,7 @@ fn safe_artifact_name(model_id: &str) -> String {
 }
 
 fn artifact_uri(output_uri: &str, file_name: &str) -> Result<String, String> {
-    if let Ok(mut url) = Url::parse(output_uri) {
+    if let Some(mut url) = parse_artifact_url(output_uri) {
         let mut path = url.path().trim_end_matches('/').to_string();
         path.push('/');
         path.push_str(file_name);
@@ -441,7 +457,7 @@ async fn publish_artifact(
     let sequence = ARTIFACT_TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let temp_suffix = format!(".tmp.{}.{}", std::process::id(), sequence);
 
-    if let Ok(url) = Url::parse(&uri) {
+    if let Some(url) = parse_artifact_url(&uri) {
         let (store, location) = parse_url_opts(&url, std::env::vars())
             .map_err(|error| format!("failed to resolve model artifact URI '{uri}': {error}"))?;
         let temp = ObjectStorePath::parse(format!("{location}{temp_suffix}"))
@@ -1686,6 +1702,15 @@ mod tests {
             index_config: None,
             model_identity: None,
         }
+    }
+
+    #[test]
+    fn artifact_urls_distinguish_windows_paths_from_object_store_uris() {
+        assert!(parse_artifact_url(r"C:\Users\runner\model.f32le").is_none());
+        assert!(parse_artifact_url("C:/Users/runner/model.f32le").is_none());
+        assert!(parse_artifact_url(r"\\server\share\model.f32le").is_none());
+        let object_store_uri = parse_artifact_url("s3://models/native/model.f32le").unwrap();
+        assert_eq!(object_store_uri.scheme(), "s3");
     }
 
     #[test]

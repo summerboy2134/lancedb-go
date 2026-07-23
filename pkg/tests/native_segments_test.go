@@ -23,8 +23,8 @@ import (
 const nativeSegmentDimension = 4
 
 func appendNativeSegmentRows(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	table contracts.ITable,
 	schema *arrow.Schema,
 	start int32,
@@ -61,8 +61,8 @@ func appendNativeSegmentRows(
 }
 
 func prepareNativeSegmentModel(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	native contracts.ITableNativeSegments,
 	version uint64,
 	fragmentIDs []uint32,
@@ -94,8 +94,8 @@ func prepareNativeSegmentModel(
 }
 
 func buildNativeSegment(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	native contracts.ITableNativeSegments,
 	version uint64,
 	fragmentIDs []uint32,
@@ -122,8 +122,8 @@ func buildNativeSegment(
 }
 
 func buildMergedNativeGeneration(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	native contracts.ITableNativeSegments,
 	version uint64,
 	allFragmentIDs []uint32,
@@ -135,8 +135,8 @@ func buildMergedNativeGeneration(
 ) (contracts.NativeIndexSegment, contracts.CommitExistingIndexSegmentsRequest) {
 	t.Helper()
 	prepared := prepareNativeSegmentModel(
-		t,
 		ctx,
+		t,
 		native,
 		version,
 		allFragmentIDs,
@@ -145,8 +145,8 @@ func buildMergedNativeGeneration(
 		modelID,
 		nil,
 	)
-	left := buildNativeSegment(t, ctx, native, version, leftIDs, config, prepared.Model)
-	right := buildNativeSegment(t, ctx, native, version, rightIDs, config, prepared.Model)
+	left := buildNativeSegment(ctx, t, native, version, leftIDs, config, prepared.Model)
+	right := buildNativeSegment(ctx, t, native, version, rightIDs, config, prepared.Model)
 	merged, err := native.MergeExistingIndexSegments(ctx, contracts.MergeExistingIndexSegmentsRequest{
 		WireVersion:       contracts.NativeSegmentWireVersion,
 		DatasetVersion:    version,
@@ -190,7 +190,7 @@ func TestNativeIndexSegmentsDistributedLifecycle(t *testing.T) {
 
 	// Each write transaction creates a separate fragment.
 	for fragment := 0; fragment < 4; fragment++ {
-		appendNativeSegmentRows(t, ctx, table, arrowSchema, int32(fragment*64), 64)
+		appendNativeSegmentRows(ctx, t, table, arrowSchema, int32(fragment*64), 64)
 	}
 	version, err := table.Version(ctx)
 	require.NoError(t, err)
@@ -218,8 +218,8 @@ func TestNativeIndexSegmentsDistributedLifecycle(t *testing.T) {
 	const configDigest = "sha256:native-vector-config-v1"
 	artifactDirectory := t.TempDir()
 	shared := prepareNativeSegmentModel(
-		t,
 		ctx,
+		t,
 		native,
 		uint64(version),
 		allFragmentIDs,
@@ -237,8 +237,8 @@ func TestNativeIndexSegmentsDistributedLifecycle(t *testing.T) {
 	// Inline artifacts remain available for small models and receive a distinct
 	// Rust-computed identity even if they train on the same rows.
 	alternate := prepareNativeSegmentModel(
-		t,
 		ctx,
+		t,
 		native,
 		uint64(version),
 		allFragmentIDs,
@@ -251,9 +251,9 @@ func TestNativeIndexSegmentsDistributedLifecycle(t *testing.T) {
 	require.Nil(t, alternate.Model.Centroids.Reference)
 	require.NotEqual(t, shared.Model.Identity.ModelChecksum, alternate.Model.Identity.ModelChecksum)
 
-	sharedLeft := buildNativeSegment(t, ctx, native, uint64(version), leftIDs, config, shared.Model)
-	sharedRight := buildNativeSegment(t, ctx, native, uint64(version), rightIDs, config, shared.Model)
-	alternateRight := buildNativeSegment(t, ctx, native, uint64(version), rightIDs, config, alternate.Model)
+	sharedLeft := buildNativeSegment(ctx, t, native, uint64(version), leftIDs, config, shared.Model)
+	sharedRight := buildNativeSegment(ctx, t, native, uint64(version), rightIDs, config, shared.Model)
+	alternateRight := buildNativeSegment(ctx, t, native, uint64(version), rightIDs, config, alternate.Model)
 
 	mergeRequest := contracts.MergeExistingIndexSegmentsRequest{
 		WireVersion:       contracts.NativeSegmentWireVersion,
@@ -347,8 +347,8 @@ func TestNativeIndexSegmentsDistributedLifecycle(t *testing.T) {
 		SampleRate:    &sampleRate,
 	}
 	pqPrepared := prepareNativeSegmentModel(
-		t,
 		ctx,
+		t,
 		native,
 		uint64(version),
 		allFragmentIDs,
@@ -390,8 +390,8 @@ func TestNativeIndexSegmentsDistributedLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, fragments, secondFragments)
 	secondMerged, secondCommit := buildMergedNativeGeneration(
-		t,
 		ctx,
+		t,
 		native,
 		uint64(secondSourceVersion),
 		allFragmentIDs,
@@ -429,8 +429,8 @@ func TestNativeIndexSegmentsDistributedLifecycle(t *testing.T) {
 	driftSourceVersion, err := table.Version(ctx)
 	require.NoError(t, err)
 	_, driftCommit := buildMergedNativeGeneration(
-		t,
 		ctx,
+		t,
 		native,
 		uint64(driftSourceVersion),
 		allFragmentIDs,
@@ -441,7 +441,7 @@ func TestNativeIndexSegmentsDistributedLifecycle(t *testing.T) {
 		"native-segment-model-stale",
 	)
 
-	appendNativeSegmentRows(t, ctx, table, arrowSchema, 10_000, 64)
+	appendNativeSegmentRows(ctx, t, table, arrowSchema, 10_000, 64)
 	latestVersion, err := table.Version(ctx)
 	require.NoError(t, err)
 	require.Greater(t, latestVersion, driftSourceVersion)
@@ -460,8 +460,8 @@ func TestNativeIndexSegmentsDistributedLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, latestFragments, 5)
 	pinned := prepareNativeSegmentModel(
-		t,
 		ctx,
+		t,
 		native,
 		uint64(version),
 		allFragmentIDs,
