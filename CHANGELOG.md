@@ -13,3 +13,4 @@
 
 ### Fixed
 - `ExecuteAsync` on both `QueryBuilder` and `VectorQueryBuilder` now always closes both returned channels after exactly one receives a value, satisfying Go's channel-close convention. Callers using `select` should use the two-value receive form (`value, ok := <-ch`) to distinguish a real value (`ok=true`) from a closed-empty channel (`ok=false`); on the closed-empty branch the other channel holds the actual result or error.
+- Native segment commits now publish from their historical source snapshot instead of requiring it to remain the latest dataset version. The resulting Lance `Operation::CreateIndex` resolves intervening transactions using Lance's native conflict rules, so compatible appends succeed and leave their new fragments unindexed while source-fragment rewrites and other conflicts remain protected.

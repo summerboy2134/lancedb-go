@@ -424,11 +424,13 @@ func TestNativeIndexSegmentsDistributedLifecycle(t *testing.T) {
 	require.Len(t, results, 3)
 	require.Equal(t, fmt.Sprint(0), fmt.Sprint(results[0]["id"]))
 
-	// Stage another same-name generation, then drift the manifest with an append.
-	// The stale commit must fail without changing the second generation.
+	// Stage another same-name generation, then advance the manifest with an
+	// append. The commit remains anchored to driftSourceVersion, allowing Lance
+	// to rebase Operation::CreateIndex over the compatible Append. The appended
+	// fragment remains unindexed and is searched through the flat fallback.
 	driftSourceVersion, err := table.Version(ctx)
 	require.NoError(t, err)
-	_, driftCommit := buildMergedNativeGeneration(
+	driftMerged, driftCommit := buildMergedNativeGeneration(
 		ctx,
 		t,
 		native,
@@ -445,15 +447,22 @@ func TestNativeIndexSegmentsDistributedLifecycle(t *testing.T) {
 	latestVersion, err := table.Version(ctx)
 	require.NoError(t, err)
 	require.Greater(t, latestVersion, driftSourceVersion)
-	_, err = native.CommitExistingIndexSegments(ctx, driftCommit)
-	require.ErrorContains(t, err, "dataset version mismatch")
-	afterRejectedCommit, err := native.InspectIndexSegments(ctx, "native_vector_idx")
+	driftCommitted, err := native.CommitExistingIndexSegments(ctx, driftCommit)
 	require.NoError(t, err)
-	require.Len(t, afterRejectedCommit.Segments, 1)
-	require.Equal(t, secondMerged.UUID, afterRejectedCommit.Segments[0].UUID)
+	require.Equal(t, uint64(driftSourceVersion), driftCommitted.SourceDatasetVersion)
+	require.Greater(t, driftCommitted.CommittedDatasetVersion, uint64(latestVersion))
+	afterCompatibleCommit, err := native.InspectIndexSegments(ctx, "native_vector_idx")
+	require.NoError(t, err)
+	require.Len(t, afterCompatibleCommit.Segments, 1)
+	require.Equal(t, driftMerged.UUID, afterCompatibleCommit.Segments[0].UUID)
+	require.ElementsMatch(t, allFragmentIDs, afterCompatibleCommit.Segments[0].FragmentIDs)
+	require.NotEqual(t, secondMerged.UUID, afterCompatibleCommit.Segments[0].UUID)
 	results, err = table.VectorSearch(ctx, "vector", []float32{0, 0.01, 0.02, 0.03}, 3)
 	require.NoError(t, err)
 	require.Equal(t, fmt.Sprint(0), fmt.Sprint(results[0]["id"]))
+	results, err = table.VectorSearch(ctx, "vector", []float32{10_000, 10_000.01, 10_000.02, 10_000.03}, 3)
+	require.NoError(t, err)
+	require.Equal(t, fmt.Sprint(10_000), fmt.Sprint(results[0]["id"]))
 
 	// Historical enumeration and training remain pinned even with a newer fragment.
 	latestFragments, err := native.ListFragments(ctx, uint64(latestVersion))
