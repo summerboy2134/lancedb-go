@@ -1345,19 +1345,24 @@ async fn commit_existing_index_segments(
         .get()
         .await
         .map_err(|error| format!("failed to get native dataset: {error}"))?;
-    let mut dataset = current.as_ref().clone();
-    dataset
-        .checkout_latest()
-        .await
-        .map_err(|error| format!("failed to refresh the latest dataset version: {error}"))?;
-    if dataset.version().version != request.dataset_version {
-        let current_version = dataset.version().version;
-        wrapper.update(dataset);
-        return Err(format!(
-            "dataset version mismatch: current={}, requested={}",
-            current_version, request.dataset_version
-        ));
-    }
+    // Anchor the CreateIndex transaction to the exact snapshot that the
+    // physical segments were built from. Lance will load every transaction
+    // committed after this read version and decide whether it can rebase the
+    // index commit (for example, Append is compatible and leaves the appended
+    // fragments unindexed, while an overlapping Rewrite is retryable).
+    let mut dataset = if current.version().version == request.dataset_version {
+        current.as_ref().clone()
+    } else {
+        current
+            .checkout_version(request.dataset_version)
+            .await
+            .map_err(|error| {
+                format!(
+                    "failed to open source dataset version {}: {error}",
+                    request.dataset_version
+                )
+            })?
+    };
     validate_fragment_ids(&dataset, &request.fragment_ids)?;
     let all_fragments = dataset_fragment_ids(&dataset)?;
     let requested_fragments = request
@@ -1375,7 +1380,9 @@ async fn commit_existing_index_segments(
             .copied()
             .collect::<Vec<_>>();
         return Err(format!(
-            "commit requires complete dataset coverage: missing={missing:?}, unexpected={unexpected:?}"
+            "commit requires complete source snapshot coverage at version {}: \
+             missing={missing:?}, unexpected={unexpected:?}",
+            request.dataset_version
         ));
     }
 

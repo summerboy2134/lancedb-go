@@ -90,20 +90,23 @@ Rust decodes the opaque protobuf before merge or commit and verifies every stabl
 field against it.  This prevents a caller from changing UUID, fragment coverage,
 details or version while retaining unrelated opaque metadata.
 
-Coverage must be disjoint and complete.  A physical merge additionally requires
-identical config, config digest and model identity.  A logical commit may contain
-multiple physical segments with different model identities; those segments are
-committed together without pretending that their physical models are mergeable.
-Commit also requires the requested version to still be the table's current
-version and requires exact coverage of every fragment in that snapshot.
+Coverage must be disjoint and complete for the requested source snapshot. A
+physical merge additionally requires identical config, config digest and model
+identity. A logical commit may contain multiple physical segments with different
+model identities; those segments are committed together without pretending that
+their physical models are mergeable. Commit opens the requested historical
+dataset version and requires exact coverage of every fragment in that source
+snapshot.
 
 Same-name rebuilds are staged with Lance's `replace(true)` builder option.
 `execute_uncommitted` only writes the new physical segment and does not change
 the manifest, so inspect and query continue to see the previously committed
 generation throughout prepare/build/merge. `commit_existing_index_segments`
-then atomically replaces the logical index with the new segment UUIDs. If an
-append or other write advances the dataset version first, commit rejects the
-stale generation and leaves the old logical index unchanged.
+then atomically replaces the logical index with the new segment UUIDs by
+committing an `Operation::CreateIndex` whose read version is the source snapshot.
+Lance reads the intervening transactions and applies its native conflict rules:
+compatible appends leave their new fragments unindexed, deletes and updates are
+handled optimistically, and incompatible or retryable conflicts are rejected.
 
 ## C ownership and failures
 

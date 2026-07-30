@@ -204,7 +204,9 @@ type MergeExistingIndexSegmentsRequest struct {
 
 // CommitExistingIndexSegmentsRequest atomically publishes all physical
 // segments as one logical vector index. Different model identities are allowed;
-// overlap, omission, config drift, and dataset-version drift are rejected.
+// overlap, omission, and config drift are rejected. DatasetVersion identifies
+// the complete source snapshot; Lance resolves compatible transactions committed
+// after that snapshot and leaves concurrently appended fragments unindexed.
 type CommitExistingIndexSegmentsRequest struct {
 	WireVersion       uint32               `json:"wire_version"`
 	DatasetVersion    uint64               `json:"dataset_version"`
