@@ -83,6 +83,20 @@ pub extern "C" fn simple_lancedb_table_create_index(
 
                 index_builder.execute().await
             }),
+            "ivf_sq" => rt.block_on(async {
+                let mut index_builder = table.create_index(
+                    &columns,
+                    lancedb::index::Index::IvfSq(
+                        lancedb::index::vector::IvfSqIndexBuilder::default(),
+                    ),
+                );
+
+                if let Some(name) = index_name_str {
+                    index_builder = index_builder.name(name);
+                }
+
+                index_builder.execute().await
+            }),
             "hnsw_pq" => rt.block_on(async {
                 let mut index_builder = table.create_index(
                     &columns,

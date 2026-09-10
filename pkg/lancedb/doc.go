@@ -166,6 +166,7 @@ Create and manage indexes for better query performance:
 	contracts.IndexTypeAuto        // Auto-select best index type
 	contracts.IndexTypeIvfPq       // IVF-PQ for large vector datasets
 	contracts.IndexTypeIvfFlat     // IVF-Flat for exact vector search
+	contracts.IndexTypeIvfSq       // IVF-SQ for scalar quantized vectors
 	contracts.IndexTypeHnswPq      // HNSW-PQ for high-performance vector search
 	contracts.IndexTypeHnswSq      // HNSW-SQ for scalar quantized vectors
 	contracts.IndexTypeBTree       // BTree for scalar fields
