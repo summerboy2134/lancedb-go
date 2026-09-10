@@ -26,6 +26,7 @@ use lance::index::DatasetIndexExt;
 use lance::Dataset;
 use lance_index::vector::ivf::IvfBuildParams;
 use lance_index::vector::pq::PQBuildParams;
+use lance_index::vector::sq::builder::SQBuildParams;
 use lance_index::IndexType as LanceIndexType;
 use lance_linalg::distance::DistanceType;
 use lance_table::format::{pb, IndexMetadata};
@@ -602,9 +603,21 @@ fn validate_index_config(config: &NativeIndexConfig) -> Result<(), String> {
                 return Err("IVF_PQ num_bits must be 4 or 8".to_string());
             }
         }
+        "ivf_sq" => {
+            // Scalar quantization derives its scaling range from the data at
+            // build time, so there is no shared codebook to size here.
+            if config.num_sub_vectors.is_some() {
+                return Err("IVF_SQ must not set index_config.num_sub_vectors".to_string());
+            }
+            if let Some(num_bits) = config.num_bits {
+                if num_bits != 8 {
+                    return Err("IVF_SQ num_bits must be 8".to_string());
+                }
+            }
+        }
         other => {
             return Err(format!(
-                "unsupported native segment index type '{other}'; supported: IVF_FLAT, IVF_PQ"
+                "unsupported native segment index type '{other}'; supported: IVF_FLAT, IVF_PQ, IVF_SQ"
             ));
         }
     }
@@ -720,6 +733,19 @@ async fn vector_params(request: &SegmentBuildRequest) -> Result<VectorIndexParam
                 pq.sample_rate = value as usize;
             }
             Ok(VectorIndexParams::with_ivf_pq_params(metric, ivf, pq))
+        }
+        "ivf_sq" => {
+            if pq_codebook.is_some() {
+                return Err("IVF_SQ must not provide model.pq_codebook".to_string());
+            }
+            let mut sq = SQBuildParams::default();
+            if let Some(value) = config.num_bits {
+                sq.num_bits = value as u16;
+            }
+            if let Some(value) = config.sample_rate {
+                sq.sample_rate = value as usize;
+            }
+            Ok(VectorIndexParams::with_ivf_sq_params(metric, ivf, sq))
         }
         other => unreachable!("validated index type {other}"),
     }
@@ -1287,6 +1313,20 @@ async fn merge_existing_index_segments(
     validate_non_empty(&request.logical_index_name, "logical_index_name")?;
     validate_non_empty(&request.index_config_digest, "index_config_digest")?;
     validate_model_identity(&request.model_identity)?;
+    // IVF_SQ segments each train their own scalar quantization range, so their
+    // codes are only meaningful against the bounds stored in their own segment.
+    // A shared IVF model does not make them physically mergeable; they must be
+    // committed as independent segments of one logical index instead.
+    if request
+        .index_config
+        .index_type
+        .eq_ignore_ascii_case("ivf_sq")
+    {
+        return Err(
+            "IVF_SQ segments do not support physical merge; commit them as independent segments"
+                .to_string(),
+        );
+    }
     let dataset = dataset_at_version(table, request.dataset_version).await?;
     validate_fragment_ids(&dataset, &request.fragment_ids)?;
     validate_coverage(&request.fragment_ids, &request.segments)?;
@@ -1830,5 +1870,109 @@ mod tests {
         vector_params(&request)
             .await
             .expect("a correctly-shaped shared PQ codebook should be accepted");
+    }
+
+    #[tokio::test]
+    async fn ivf_sq_builds_from_centroids_alone() {
+        let mut request = SegmentBuildRequest {
+            wire_version: NATIVE_SEGMENT_WIRE_VERSION,
+            dataset_version: 1,
+            fragment_ids: vec![0],
+            vector_column: "vector".to_string(),
+            logical_index_name: "idx".to_string(),
+            index_config_digest: "sha256:test".to_string(),
+            index_config: NativeIndexConfig {
+                index_type: "IVF_SQ".to_string(),
+                distance_type: "l2".to_string(),
+                dimension: 4,
+                num_partitions: 2,
+                num_sub_vectors: None,
+                num_bits: Some(8),
+                max_iterations: None,
+                sample_rate: None,
+                target_partition_size: None,
+            },
+            model: IndexModel {
+                identity: ModelIdentity {
+                    model_id: "model".to_string(),
+                    model_checksum: String::new(),
+                    model_scope: "macro".to_string(),
+                    runtime_version: NATIVE_RUNTIME_VERSION.to_string(),
+                },
+                centroids: artifact(&[2, 4], &[0.0; 8]),
+                pq_codebook: None,
+            },
+        };
+
+        let centroids = request
+            .model
+            .centroids
+            .load("model.centroids")
+            .await
+            .unwrap();
+        request.model.identity.model_checksum = canonical_model_checksum(
+            &request.index_config,
+            &request.index_config_digest,
+            &request.model.identity.model_id,
+            &request.model.identity.model_scope,
+            &centroids,
+            None,
+        )
+        .unwrap();
+        vector_params(&request)
+            .await
+            .expect("IVF_SQ only needs the shared IVF centroids");
+
+        request.model.pq_codebook = Some(artifact(&[2, 16, 2], &[0.0; 64]));
+        let codebook = request
+            .model
+            .pq_codebook
+            .as_ref()
+            .unwrap()
+            .load("model.pq_codebook")
+            .await
+            .unwrap();
+        request.model.identity.model_checksum = canonical_model_checksum(
+            &request.index_config,
+            &request.index_config_digest,
+            &request.model.identity.model_id,
+            &request.model.identity.model_scope,
+            &centroids,
+            Some(&codebook),
+        )
+        .unwrap();
+        let error = vector_params(&request).await.unwrap_err();
+        assert!(
+            error.contains("must not provide model.pq_codebook"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn ivf_sq_rejects_pq_shaped_config() {
+        let mut config = NativeIndexConfig {
+            index_type: "ivf_sq".to_string(),
+            distance_type: "l2".to_string(),
+            dimension: 4,
+            num_partitions: 2,
+            num_sub_vectors: Some(2),
+            num_bits: Some(8),
+            max_iterations: None,
+            sample_rate: None,
+            target_partition_size: None,
+        };
+        let error = validate_index_config(&config).unwrap_err();
+        assert!(
+            error.contains("must not set index_config.num_sub_vectors"),
+            "{error}"
+        );
+
+        config.num_sub_vectors = None;
+        config.num_bits = Some(4);
+        let error = validate_index_config(&config).unwrap_err();
+        assert!(error.contains("num_bits must be 8"), "{error}");
+
+        config.num_bits = None;
+        validate_index_config(&config).expect("IVF_SQ may leave num_bits unset");
     }
 }

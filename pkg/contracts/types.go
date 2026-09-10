@@ -18,6 +18,10 @@ const (
 	IndexTypeBitmap
 	IndexTypeLabelList
 	IndexTypeFts
+	// IndexTypeIvfSq is appended last on purpose: the constants are plain
+	// iota values, so inserting it next to the other IVF entries would
+	// renumber every type below it.
+	IndexTypeIvfSq
 )
 
 // DistanceType represents the distance metric for vector similarity search

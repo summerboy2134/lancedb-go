@@ -1021,6 +1021,8 @@ func (t *Table) indexTypeToString(indexType contracts.IndexType) string {
 		return "ivf_pq"
 	case contracts.IndexTypeIvfFlat:
 		return "ivf_flat"
+	case contracts.IndexTypeIvfSq:
+		return "ivf_sq"
 	case contracts.IndexTypeHnswPq:
 		return "hnsw_pq"
 	case contracts.IndexTypeHnswSq:
