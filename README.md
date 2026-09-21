@@ -66,11 +66,11 @@ make platform-info
 
 # Example output will show:
 # CGO_CFLAGS:  -I/path/to/your-project/include
-# CGO_LDFLAGS: /path/to/your-project/lib/darwin_arm64/liblancedb_go.a -framework Security -framework CoreFoundation
+# CGO_LDFLAGS: /path/to/your-project/lib/darwin_arm64/liblancedb_go.a -framework Security -framework CoreFoundation -framework SystemConfiguration
 
 # Set the environment variables (REQUIRED):
 export CGO_CFLAGS="-I$(pwd)/include"
-export CGO_LDFLAGS="$(pwd)/lib/darwin_arm64/liblancedb_go.a -framework Security -framework CoreFoundation"
+export CGO_LDFLAGS="$(pwd)/lib/darwin_arm64/liblancedb_go.a -framework Security -framework CoreFoundation -framework SystemConfiguration"
 
 # Now you can build your project:
 go build ./cmd/myapp

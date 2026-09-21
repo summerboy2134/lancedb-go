@@ -1313,10 +1313,12 @@ async fn merge_existing_index_segments(
     validate_non_empty(&request.logical_index_name, "logical_index_name")?;
     validate_non_empty(&request.index_config_digest, "index_config_digest")?;
     validate_model_identity(&request.model_identity)?;
-    // IVF_SQ segments each train their own scalar quantization range, so their
-    // codes are only meaningful against the bounds stored in their own segment.
-    // A shared IVF model does not make them physically mergeable; they must be
-    // committed as independent segments of one logical index instead.
+    // Fanout queries can compare independently trained IVF_SQ segments because
+    // Lance reconstructs Dot distances with each segment's own bounds. A
+    // physical merge is different: it concatenates the u8 codes into one
+    // storage metadata scope. Unless the inputs share identical bounds or are
+    // requantized, those codes cannot safely use one output bounds range. Keep
+    // independently trained SQ outputs as separate physical segments.
     if request
         .index_config
         .index_type

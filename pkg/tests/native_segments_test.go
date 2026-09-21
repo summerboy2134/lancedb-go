@@ -6,6 +6,7 @@ package tests
 import (
 	"context"
 	"fmt"
+	"math/bits"
 	"os"
 	"strings"
 	"testing"
@@ -21,6 +22,8 @@ import (
 )
 
 const nativeSegmentDimension = 4
+
+const nativeSQDotDimension = 64
 
 func appendNativeSegmentRows(
 	ctx context.Context,
@@ -58,6 +61,70 @@ func appendNativeSegmentRows(
 	vectorArray.Release()
 	defer record.Release()
 	require.NoError(t, table.Add(ctx, record, nil))
+}
+
+func appendNativeSegmentVectors(
+	ctx context.Context,
+	t *testing.T,
+	table contracts.ITable,
+	schema *arrow.Schema,
+	startID int32,
+	vectors [][]float32,
+) {
+	t.Helper()
+	pool := memory.NewGoAllocator()
+	idBuilder := array.NewInt32Builder(pool)
+	vectorBuilder := array.NewFixedSizeListBuilder(pool, nativeSQDotDimension, arrow.PrimitiveTypes.Float32)
+	valuesBuilder := vectorBuilder.ValueBuilder().(*array.Float32Builder)
+	defer idBuilder.Release()
+	defer vectorBuilder.Release()
+
+	for offset, vector := range vectors {
+		require.Len(t, vector, nativeSQDotDimension)
+		idBuilder.Append(startID + int32(offset))
+		vectorBuilder.Append(true)
+		valuesBuilder.AppendValues(vector, nil)
+	}
+
+	idArray := idBuilder.NewArray()
+	vectorArray := vectorBuilder.NewArray()
+	record := array.NewRecord(schema, []arrow.Array{idArray, vectorArray}, int64(len(vectors)))
+	idArray.Release()
+	vectorArray.Release()
+	defer record.Release()
+	require.NoError(t, table.Add(ctx, record, nil))
+}
+
+func requireSQDotSelfMatch(
+	t *testing.T,
+	ctx context.Context,
+	table contracts.ITable,
+	query []float32,
+	wantID int32,
+) {
+	t.Helper()
+	record, err := table.VectorQuery("vector", query).
+		Limit(1).
+		DistanceType(contracts.DistanceTypeDot).
+		Nprobes(1).
+		FastSearch().
+		Execute(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	defer record.Release()
+	require.Equal(t, int64(1), record.NumRows())
+
+	idIndices := record.Schema().FieldIndices("id")
+	require.Len(t, idIndices, 1)
+	idColumn, ok := record.Column(idIndices[0]).(*array.Int32)
+	require.True(t, ok, "id column has type %T", record.Column(idIndices[0]))
+	require.Equal(t, wantID, idColumn.Value(0))
+
+	distanceIndices := record.Schema().FieldIndices("_distance")
+	require.Len(t, distanceIndices, 1)
+	distanceColumn, ok := record.Column(distanceIndices[0]).(*array.Float32)
+	require.True(t, ok, "_distance column has type %T", record.Column(distanceIndices[0]))
+	require.InDelta(t, 0.0, distanceColumn.Value(0), 0.02)
 }
 
 func prepareNativeSegmentModel(
@@ -484,4 +551,116 @@ func TestNativeIndexSegmentsDistributedLifecycle(t *testing.T) {
 	historical, err := native.ListFragments(ctx, uint64(version))
 	require.NoError(t, err)
 	require.Equal(t, fragments, historical)
+}
+
+func TestNativeIndexSegmentsIVFSQDotDistancesAreComparableAcrossSegments(t *testing.T) {
+	ctx := context.Background()
+	connection, err := lancedb.Connect(ctx, t.TempDir(), nil)
+	require.NoError(t, err)
+	defer connection.Close()
+
+	arrowSchema := arrow.NewSchema([]arrow.Field{
+		{Name: "id", Type: arrow.PrimitiveTypes.Int32, Nullable: false},
+		{Name: "vector", Type: arrow.FixedSizeListOf(nativeSQDotDimension, arrow.PrimitiveTypes.Float32), Nullable: false},
+	}, nil)
+	schema, err := internal.NewSchema(arrowSchema)
+	require.NoError(t, err)
+	table, err := connection.CreateTable(ctx, "native_sq_dot_segments", schema)
+	require.NoError(t, err)
+	defer table.Close()
+	native, ok := table.(contracts.ITableNativeSegments)
+	require.True(t, ok)
+
+	// The first fragment has a wide SQ range [-1, 0]. The second uses dense,
+	// normalized Walsh vectors with a narrow range [-0.125, 0.125]. Lance 8's
+	// old code-space Dot calculation gave the wide-range segment a large
+	// segment-specific offset, so a query from the second fragment was ranked
+	// behind unrelated vectors from the first fragment.
+	wideVectors := make([][]float32, 32)
+	for row := range wideVectors {
+		vector := make([]float32, nativeSQDotDimension)
+		vector[row] = -1
+		wideVectors[row] = vector
+	}
+	appendNativeSegmentVectors(ctx, t, table, arrowSchema, 1_000, wideVectors)
+	wideVersion, err := table.Version(ctx)
+	require.NoError(t, err)
+	wideFragments, err := native.ListFragments(ctx, uint64(wideVersion))
+	require.NoError(t, err)
+	require.Len(t, wideFragments, 1)
+	wideFragmentID := uint32(wideFragments[0].ID)
+
+	const denseValue = float32(0.125) // 1 / sqrt(64), so every vector has norm 1.
+	narrowVectors := make([][]float32, 32)
+	for row := range narrowVectors {
+		vector := make([]float32, nativeSQDotDimension)
+		for dimension := range vector {
+			if bits.OnesCount(uint(row&dimension))%2 == 0 {
+				vector[dimension] = denseValue
+			} else {
+				vector[dimension] = -denseValue
+			}
+		}
+		narrowVectors[row] = vector
+	}
+	appendNativeSegmentVectors(ctx, t, table, arrowSchema, 2_000, narrowVectors)
+
+	version, err := table.Version(ctx)
+	require.NoError(t, err)
+	fragments, err := native.ListFragments(ctx, uint64(version))
+	require.NoError(t, err)
+	require.Len(t, fragments, 2)
+	var narrowFragmentID uint32
+	for _, fragment := range fragments {
+		if uint32(fragment.ID) != wideFragmentID {
+			narrowFragmentID = uint32(fragment.ID)
+		}
+	}
+	require.NotEqual(t, wideFragmentID, narrowFragmentID)
+	leftIDs := []uint32{wideFragmentID}
+	rightIDs := []uint32{narrowFragmentID}
+	allFragmentIDs := []uint32{leftIDs[0], rightIDs[0]}
+
+	bits8 := uint32(8)
+	config := contracts.NativeIndexConfig{
+		Type:          "IVF_SQ",
+		DistanceType:  "dot",
+		Dimension:     nativeSQDotDimension,
+		NumPartitions: 1,
+		NumBits:       &bits8,
+	}
+	const configDigest = "sha256:native-vector-config-v1"
+	prepared := prepareNativeSegmentModel(
+		ctx,
+		t,
+		native,
+		uint64(version),
+		allFragmentIDs,
+		config,
+		configDigest,
+		"native-segment-sq-dot-model",
+		nil,
+	)
+	left := buildNativeSegment(ctx, t, native, uint64(version), leftIDs, config, prepared.Model)
+	right := buildNativeSegment(ctx, t, native, uint64(version), rightIDs, config, prepared.Model)
+
+	committed, err := native.CommitExistingIndexSegments(ctx, contracts.CommitExistingIndexSegmentsRequest{
+		WireVersion:       contracts.NativeSegmentWireVersion,
+		DatasetVersion:    uint64(version),
+		FragmentIDs:       allFragmentIDs,
+		VectorColumn:      "vector",
+		LogicalIndexName:  "native_vector_idx",
+		IndexConfigDigest: configDigest,
+		IndexConfig:       config,
+		Segments:          []contracts.NativeIndexSegment{left, right},
+	})
+	require.NoError(t, err)
+	require.Len(t, committed.SegmentUUIDs, 2)
+
+	inspection, err := native.InspectIndexSegments(ctx, "native_vector_idx")
+	require.NoError(t, err)
+	require.Len(t, inspection.Segments, 2, "SQ segments must remain physically independent")
+
+	requireSQDotSelfMatch(t, ctx, table, wideVectors[0], 1_000)
+	requireSQDotSelfMatch(t, ctx, table, narrowVectors[0], 2_000)
 }

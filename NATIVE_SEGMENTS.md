@@ -3,16 +3,16 @@
 This fork exposes Lance's fragment-scoped distributed vector-index workflow
 through a versioned Go/JSON/C/Rust boundary.  The implementation baseline is:
 
-- `lancedb =0.31.0`
-- Lance crates `=8.0.0`
-- Arrow Rust crates `=58.0.0`
+- `lancedb =0.39.0`
+- Lance crates `=12.0.0`
+- Arrow Rust crates `=58.4.0`
 - Rust `1.91.0`
 - native segment wire version `1`
 
 The complete runtime identity is embedded in every response and model identity:
 
 ```text
-lancedb=0.31.0;lance=8.0.0;arrow=58.0.0;rust=1.91.0;native-segment-wire=1
+lancedb=0.39.0;lance=12.0.0;arrow=58.4.0;rust=1.91.0;native-segment-wire=1
 ```
 
 ## Public Go capability
