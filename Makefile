@@ -32,7 +32,7 @@ endif
 # Normalize platform names and set CGO flags
 ifeq ($(UNAME_S),Darwin)
 	PLATFORM := darwin
-	FRAMEWORK_FLAGS := -framework Security -framework CoreFoundation
+	FRAMEWORK_FLAGS := -framework Security -framework CoreFoundation -framework SystemConfiguration
 	CGO_LDFLAGS := $(CURRENT_DIR)/lib/darwin_$(ARCH)/liblancedb_go.a $(FRAMEWORK_FLAGS)
 else ifeq ($(UNAME_S),Linux)
 	PLATFORM := linux

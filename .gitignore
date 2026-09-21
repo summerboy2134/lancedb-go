@@ -52,6 +52,11 @@ Thumbs.db
 tmp/
 
 # -----------------------
+# Local secrets / integration test configuration
+# -----------------------
+/.env
+
+# -----------------------
 # LanceDB Binary Distribution
 # -----------------------
 # These files are auto-downloaded during build process

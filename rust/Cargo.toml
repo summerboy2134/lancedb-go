@@ -1,6 +1,6 @@
 [package]
 name = "lancedb-go"
-version = "0.31.0-native-segments.1"
+version = "0.39.0-native-segments.1"
 edition = "2021"
 description = "CGO bindings for LanceDB"
 license = "Apache-2.0"
@@ -17,35 +17,39 @@ crate-type = ["staticlib"]
 path = "src/lib_simple.rs"
 
 [dependencies]
-lancedb = { version = "=0.31.0", default-features = false }
-lance = { version = "=8.0.0", default-features = false }
-lance-index = "=8.0.0"
-lance-linalg = "=8.0.0"
-lance-table = "=8.0.0"
+# lancedb 0.38+ unconditionally compiles src/job.rs, which references the
+# remote-gated Error::Http variant, so the crate cannot build without the
+# "remote" feature (upstream bug; default = [] does not compile). Keep the
+# feature enabled until upstream gates the job module properly.
+lancedb = { version = "=0.39.0", default-features = false, features = ["remote"] }
+lance = { version = "=12.0.0", default-features = false }
+lance-index = "=12.0.0"
+lance-linalg = "=12.0.0"
+lance-table = "=12.0.0"
 tokio = { version = "1.40", features = ["rt-multi-thread", "macros", "fs", "io-util"] }
 libc = "0.2"
 log = "0.4"
 env_logger = "0.11"
-arrow = { version = "=58.0.0", optional = false }
-arrow-arith = "=58.0.0"
-arrow-array = "=58.0.0"
-arrow-buffer = "=58.0.0"
-arrow-csv = "=58.0.0"
-arrow-data = "=58.0.0"
-arrow-json = "=58.0.0"
-arrow-schema = "=58.0.0"
-arrow-ord = "=58.0.0"
-arrow-row = "=58.0.0"
-arrow-select = "=58.0.0"
-arrow-string = "=58.0.0"
-arrow-cast = "=58.0.0"
-arrow-ipc = "=58.0.0"
+arrow = { version = "=58.4.0", optional = false }
+arrow-arith = "=58.4.0"
+arrow-array = "=58.4.0"
+arrow-buffer = "=58.4.0"
+arrow-csv = "=58.4.0"
+arrow-data = "=58.4.0"
+arrow-json = "=58.4.0"
+arrow-schema = "=58.4.0"
+arrow-ord = "=58.4.0"
+arrow-row = "=58.4.0"
+arrow-select = "=58.4.0"
+arrow-string = "=58.4.0"
+arrow-cast = "=58.4.0"
+arrow-ipc = "=58.4.0"
 base64 = "0.22"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio-stream = "0.1"
 prost = "0.14"
-object_store = { version = "=0.13.2", default-features = false, features = ["fs"] }
+object_store = { version = "=0.14.1", default-features = false, features = ["fs"] }
 sha2 = "0.10"
 url = "2.5"
 # Re-exported via lancedb::table::OptimizeAction::Prune.older_than.

@@ -94,7 +94,7 @@ pub extern "C" fn simple_lancedb_table_add_columns(
 
         let table = unsafe { &*(table_handle as *const lancedb::Table) };
         let rt = get_simple_runtime();
-        match rt.block_on(async { table.add_columns(transforms, None).await }) {
+        match rt.block_on(async { table.add_columns().transform(transforms).execute().await }) {
             Ok(res) => {
                 unsafe {
                     *version_out = res.version;

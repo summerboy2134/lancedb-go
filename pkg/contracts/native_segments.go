@@ -14,7 +14,7 @@ const (
 	// NativeSegmentWireVersion versions the SDK-owned JSON/bytes contract.
 	NativeSegmentWireVersion uint32 = 1
 	// NativeRuntimeVersion is embedded in every request model identity and response.
-	NativeRuntimeVersion = "lancedb=0.31.0;lance=8.0.0;arrow=58.0.0;rust=1.91.0;native-segment-wire=1"
+	NativeRuntimeVersion = "lancedb=0.39.0;lance=12.0.0;arrow=58.4.0;rust=1.91.0;native-segment-wire=1"
 )
 
 // ITableNativeSegments is an optional native-table capability. It stays out of

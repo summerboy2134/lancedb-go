@@ -307,7 +307,7 @@ jobs:
               ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
               SDK_VERSION=$(xcrun --show-sdk-version 2>/dev/null || echo "15.0")
               echo "MACOSX_DEPLOYMENT_TARGET=$SDK_VERSION" >> "$GITHUB_ENV"
-              echo "CGO_LDFLAGS=$(pwd)/lib/darwin_${ARCH}/liblancedb_go.a -framework Security -framework CoreFoundation -lc++ -lbz2 -lz" >> "$GITHUB_ENV"
+              echo "CGO_LDFLAGS=$(pwd)/lib/darwin_${ARCH}/liblancedb_go.a -framework Security -framework CoreFoundation -framework SystemConfiguration -lc++ -lbz2 -lz" >> "$GITHUB_ENV"
               ;;
             Linux)
               ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
