@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright The LanceDB Authors
 
-.PHONY: all build test test-integration clean install-deps install-act fmt lint lint-rust lint-go lint-go-fix lint-report examples prepare-examples run-examples run-example docs release check-libraries platform-info build-go ci-quick ci-format ci-build ci-test ci-security ci-docs ci-examples ci-local ci-list ci-stage1 ci-stage2 ci-stage3 ci-debug ci-clean ci-graph
+.PHONY: all build test test-integration test-merge-insert-concurrency clean install-deps install-act fmt lint lint-rust lint-go lint-go-fix lint-report examples prepare-examples run-examples run-example docs release check-libraries platform-info build-go ci-quick ci-format ci-build ci-test ci-security ci-docs ci-examples ci-local ci-list ci-stage1 ci-stage2 ci-stage3 ci-debug ci-clean ci-graph
 
 # Default target
 all: build test
@@ -32,7 +32,7 @@ endif
 # Normalize platform names and set CGO flags
 ifeq ($(UNAME_S),Darwin)
 	PLATFORM := darwin
-	FRAMEWORK_FLAGS := -framework Security -framework CoreFoundation
+	FRAMEWORK_FLAGS := -framework Security -framework CoreFoundation -framework SystemConfiguration
 	CGO_LDFLAGS := $(CURRENT_DIR)/lib/darwin_$(ARCH)/liblancedb_go.a $(FRAMEWORK_FLAGS)
 else ifeq ($(UNAME_S),Linux)
 	PLATFORM := linux
@@ -116,6 +116,14 @@ test-integration: build check-libraries
 	@echo "Running integration tests (testcontainers will manage MinIO)..."
 	CGO_CFLAGS="$(CGO_CFLAGS)" CGO_LDFLAGS="$(CGO_LDFLAGS)" \
 		go test -v -tags integration -timeout 120s ./...
+
+# Run the direct SDK concurrency probe against local, MinIO, and (when .env is
+# configured) UFile. This intentionally bypasses every project gRPC service.
+test-merge-insert-concurrency: check-libraries
+	@echo "Running direct SDK MergeInsert concurrency probe..."
+	CGO_CFLAGS="$(CGO_CFLAGS)" CGO_LDFLAGS="$(CGO_LDFLAGS)" \
+		go test -v -tags mergeinsert_concurrency -timeout 15m \
+		./pkg/tests -run '^TestConcurrentMergeInsertBackends$$' -count=1
 
 # Quick build for user projects (convenience target)
 build-go: check-libraries
@@ -279,6 +287,8 @@ help:
 	@echo "  build-all-platforms - Build native libraries for all platforms"
 	@echo "  build-go          - Build Go project with proper CGO configuration"
 	@echo "  test              - Run tests"
+	@echo "  test-integration  - Run Docker-backed integration tests"
+	@echo "  test-merge-insert-concurrency - Compare 200 concurrent MergeInsert calls across backends"
 	@echo "  bench             - Run benchmarks"
 	@echo "  clean             - Clean build artifacts"
 	@echo "  clean-dist        - Clean binary distribution files"

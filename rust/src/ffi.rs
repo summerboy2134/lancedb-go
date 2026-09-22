@@ -9,7 +9,7 @@ use std::ptr;
 
 pub const NATIVE_SEGMENT_WIRE_VERSION: u32 = 1;
 pub const NATIVE_RUNTIME_VERSION: &str =
-    "lancedb=0.31.0;lance=8.0.0;arrow=58.0.0;rust=1.91.0;native-segment-wire=1";
+    "lancedb=0.39.0;lance=12.0.0;arrow=58.4.0;rust=1.91.0;native-segment-wire=1";
 
 pub const FFI_ERROR_NONE: c_int = 0;
 pub const FFI_ERROR_OPERATION: c_int = 1;

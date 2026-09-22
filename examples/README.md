@@ -214,7 +214,7 @@ Current Directory:   /path/to/examples
 CGO Configuration:
 ==================
 CGO_CFLAGS:  -I/path/to/examples/include
-CGO_LDFLAGS: /path/to/examples/lib/darwin_arm64/liblancedb_go.a -framework Security -framework CoreFoundation
+CGO_LDFLAGS: /path/to/examples/lib/darwin_arm64/liblancedb_go.a -framework Security -framework CoreFoundation -framework SystemConfiguration
 
 Library Status:
 ===============
@@ -244,7 +244,7 @@ make platform-info
 
 # 3. Set environment variables
 export CGO_CFLAGS="-I$(pwd)/include"
-export CGO_LDFLAGS="$(pwd)/lib/darwin_arm64/liblancedb_go.a -framework Security -framework CoreFoundation"
+export CGO_LDFLAGS="$(pwd)/lib/darwin_arm64/liblancedb_go.a -framework Security -framework CoreFoundation -framework SystemConfiguration"
 
 # 4. Build and run manually
 cd basic_crud

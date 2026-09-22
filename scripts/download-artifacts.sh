@@ -176,7 +176,7 @@ get_linker_flags() {
     
     case "$platform" in
         darwin)
-            echo "$lib_path -framework Security -framework CoreFoundation"
+            echo "$lib_path -framework Security -framework CoreFoundation -framework SystemConfiguration"
             ;;
         linux)
             echo "$lib_path -lm -ldl -lpthread"
