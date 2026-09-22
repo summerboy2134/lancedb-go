@@ -96,8 +96,8 @@ func appendNativeSegmentVectors(
 }
 
 func requireSQDotSelfMatch(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	table contracts.ITable,
 	query []float32,
 	wantID int32,
@@ -661,6 +661,6 @@ func TestNativeIndexSegmentsIVFSQDotDistancesAreComparableAcrossSegments(t *test
 	require.NoError(t, err)
 	require.Len(t, inspection.Segments, 2, "SQ segments must remain physically independent")
 
-	requireSQDotSelfMatch(t, ctx, table, wideVectors[0], 1_000)
-	requireSQDotSelfMatch(t, ctx, table, narrowVectors[0], 2_000)
+	requireSQDotSelfMatch(ctx, t, table, wideVectors[0], 1_000)
+	requireSQDotSelfMatch(ctx, t, table, narrowVectors[0], 2_000)
 }
